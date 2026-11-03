@@ -1,0 +1,15 @@
+services:
+  captain:
+    image: ghcr.io/aimansam/captain:latest
+    build: .
+    container_name: captain
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8787}:8787"
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      SECURE_COOKIE: ${SECURE_COOKIE:-false}
+      READ_ONLY: ${READ_ONLY:-false}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
