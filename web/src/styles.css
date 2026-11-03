@@ -133,6 +133,13 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in sr
 .cl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ok-banner { background: var(--ok-bg); color: var(--ok); margin-top: 12px; }
 
+.opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; cursor: pointer; }
+.opt input { padding: 0; margin-top: 3px; accent-color: var(--accent); }
+.term { margin: 0; padding: 12px 14px; max-height: 46vh; min-height: 160px; overflow: auto; background: var(--log-bg); color: var(--log-text); border-radius: 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
+.status-line { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* logs */
 .drawer { position: fixed; left: 0; right: 0; bottom: 0; height: 42vh; background: var(--log-bg); border-top: 2px solid var(--accent); display: flex; flex-direction: column; box-shadow: 0 -8px 24px rgba(0, 0, 0, .25); }
 .drawer-head { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid #222a35; color: #e6edf3; }

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Rebuild a compose project from the UI (`docker compose up -d --build`) with live output and an optional "pull newer images first"
+- Build-time fix: faster multi-arch image builds
+
 ## 0.1.0
 
 First public release.

@@ -31,6 +31,11 @@ export function createRoutes(d) {
     res.type('text/plain').send(await d.logs(req.params.id, tail));
   }));
 
+  r.post('/projects/:name/rebuild', wrap(async (req, res) => {
+    res.json(await d.startRebuild(req.params.name, { pull: req.body?.pull === true }));
+  }));
+  r.get('/jobs/:id', wrap(async (req, res) => res.json(await d.getJob(req.params.id))));
+
   r.post('/projects/:name/:action', wrap(async (req, res) => {
     res.json(await d.projectAction(req.params.name, req.params.action));
   }));

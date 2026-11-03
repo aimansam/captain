@@ -1,5 +1,6 @@
 import os from 'node:os';
 import Docker from 'dockerode';
+import { commandsFor, composeSpec, getJob as jobStatus, isRebuildable, startJob, validProjectName } from './rebuild.js';
 
 const docker = new Docker({ socketPath: process.env.DOCKER_SOCKET || '/var/run/docker.sock' });
 
@@ -37,6 +38,14 @@ export async function setAutoStart(id, enabled) {
 export async function listContainers() {
   const items = await docker.listContainers({ all: true });
   await restartPolicies(items.map((c) => c.Id));
+  const reachable = new Map();
+  const rebuildable = (labels) => {
+    const spec = composeSpec(labels);
+    if (!spec) return false;
+    const key = spec.files.join(',');
+    if (!reachable.has(key)) reachable.set(key, isRebuildable(spec));
+    return reachable.get(key);
+  };
   return items
     .map((c) => ({
       id: c.Id,
@@ -46,6 +55,7 @@ export async function listContainers() {
       status: c.Status,
       project: c.Labels?.[PROJECT_LABEL] || null,
       restart: policyCache.get(c.Id)?.name || 'no',
+      rebuildable: rebuildable(c.Labels),
       ports: (c.Ports || [])
         .filter((p) => p.PublicPort)
         .map((p) => `${p.PublicPort}:${p.PrivatePort}`)
@@ -282,3 +292,22 @@ export async function cleanupRun(body = {}) {
 
   return { removed, reclaimed, failed };
 }
+
+export async function startRebuild(project, { pull = false } = {}) {
+  if (!validProjectName(project)) throw httpError(400, 'bad project name');
+  const items = await docker.listContainers({
+    all: true,
+    filters: { label: [`${PROJECT_LABEL}=${project}`] },
+  });
+  if (!items.length) throw httpError(404, 'project not found');
+  if (items.some((c) => isSelf(c.Id))) {
+    throw httpError(409, "Captain can't rebuild itself. Run `docker compose up -d --build` on the host instead.");
+  }
+  const spec = composeSpec(items[0].Labels);
+  if (!isRebuildable(spec)) {
+    throw httpError(409, `Compose files are not reachable from Captain. Mount ${spec?.dir ?? 'the project folder'} at the same path (read-only is fine).`);
+  }
+  return startJob(project, commandsFor(project, spec, { pull }));
+}
+
+export const getJob = async (id) => jobStatus(id);

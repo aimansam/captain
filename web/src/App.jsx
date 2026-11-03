@@ -3,6 +3,7 @@ import { api, fmtBytes, UnauthorizedError } from './api.js';
 import ProjectGroup from './components/ProjectGroup.jsx';
 import LogsDrawer from './components/LogsDrawer.jsx';
 import CleanupModal from './components/CleanupModal.jsx';
+import RebuildModal from './components/RebuildModal.jsx';
 import { Anchor, Broom, Search } from './components/Icons.jsx';
 
 const POLL_MS = 3000;
@@ -49,6 +50,7 @@ function Dashboard({ onLogout, readOnly }) {
   const [pending, setPending] = useState(new Set());
   const [logTarget, setLogTarget] = useState(null);
   const [showCleanup, setShowCleanup] = useState(false);
+  const [rebuildProject, setRebuildProject] = useState(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
 
@@ -172,6 +174,7 @@ function Dashboard({ onLogout, readOnly }) {
           containers={items}
           stats={stats}
           pending={pending}
+          onRebuild={setRebuildProject}
           onProject={(action) =>
             run(`p:${name}`, () => api.projectAction(name, action),
               action === 'down' ? `Stop all running containers in "${name}"?` : null)}
@@ -185,6 +188,10 @@ function Dashboard({ onLogout, readOnly }) {
       ))}
 
       {groups.length === 0 && containers.length > 0 && <p className="empty">No containers match.</p>}
+
+      {rebuildProject && (
+        <RebuildModal project={rebuildProject} onClose={() => { setRebuildProject(null); refresh(); }} />
+      )}
 
       {showCleanup && <CleanupModal onClose={() => { setShowCleanup(false); refresh(); }} />}
 

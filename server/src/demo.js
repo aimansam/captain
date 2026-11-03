@@ -7,21 +7,21 @@ const days = (n) => now - n * 86_400_000;
 const mk = (name, image, project, o = {}) => ({
   id: Buffer.from(name).toString('hex').padEnd(64, '0').slice(0, 64),
   name, image, project,
-  state: 'running', restart: 'unless-stopped', ports: [], self: false,
+  state: 'running', restart: 'unless-stopped', rebuildable: false, ports: [], self: false,
   cpu: 1, mem: 100 * MB, rx: 1e6, tx: 5e5, stoppedAt: null, size: 0,
   ...o,
 });
 
 let state = [
-  mk('jellyfin', 'jellyfin/jellyfin:10.9', 'media', { ports: ['8096:8096'], cpu: 6, mem: 820 * MB }),
-  mk('sonarr', 'linuxserver/sonarr:4', 'media', { ports: ['8989:8989'], cpu: 1.2, mem: 240 * MB }),
-  mk('radarr', 'linuxserver/radarr:5', 'media', { ports: ['7878:7878'], cpu: 0.8, mem: 210 * MB }),
-  mk('qbittorrent', 'linuxserver/qbittorrent:4.6', 'media', { ports: ['8080:8080'], cpu: 3.4, mem: 380 * MB }),
-  mk('shop-web', 'acme/shop-web:2.4.1', 'shop', { ports: ['3000:3000'], cpu: 2.1, mem: 190 * MB }),
-  mk('shop-api', 'acme/shop-api:2.4.1', 'shop', { ports: ['4000:4000'], cpu: 4.7, mem: 420 * MB }),
-  mk('shop-worker', 'acme/shop-api:2.4.1', 'shop', { cpu: 9.5, mem: 510 * MB }),
-  mk('shop-postgres', 'postgres:16', 'shop', { cpu: 1.9, mem: 640 * MB, restart: 'always' }),
-  mk('shop-redis', 'redis:7-alpine', 'shop', { cpu: 0.4, mem: 28 * MB }),
+  mk('jellyfin', 'jellyfin/jellyfin:10.9', 'media', { rebuildable: true, ports: ['8096:8096'], cpu: 6, mem: 820 * MB }),
+  mk('sonarr', 'linuxserver/sonarr:4', 'media', { rebuildable: true, ports: ['8989:8989'], cpu: 1.2, mem: 240 * MB }),
+  mk('radarr', 'linuxserver/radarr:5', 'media', { rebuildable: true, ports: ['7878:7878'], cpu: 0.8, mem: 210 * MB }),
+  mk('qbittorrent', 'linuxserver/qbittorrent:4.6', 'media', { rebuildable: true, ports: ['8080:8080'], cpu: 3.4, mem: 380 * MB }),
+  mk('shop-web', 'acme/shop-web:2.4.1', 'shop', { rebuildable: true, ports: ['3000:3000'], cpu: 2.1, mem: 190 * MB }),
+  mk('shop-api', 'acme/shop-api:2.4.1', 'shop', { rebuildable: true, ports: ['4000:4000'], cpu: 4.7, mem: 420 * MB }),
+  mk('shop-worker', 'acme/shop-api:2.4.1', 'shop', { rebuildable: true, cpu: 9.5, mem: 510 * MB }),
+  mk('shop-postgres', 'postgres:16', 'shop', { rebuildable: true, cpu: 1.9, mem: 640 * MB, restart: 'always' }),
+  mk('shop-redis', 'redis:7-alpine', 'shop', { rebuildable: true, cpu: 0.4, mem: 28 * MB }),
   mk('grafana', 'grafana/grafana:11', 'monitoring', { ports: ['3001:3000'], cpu: 0.9, mem: 260 * MB }),
   mk('prometheus', 'prom/prometheus:v2.54', 'monitoring', { ports: ['9090:9090'], cpu: 2.3, mem: 540 * MB }),
   mk('node-exporter', 'prom/node-exporter:v1.8', 'monitoring', { cpu: 0.2, mem: 18 * MB }),
@@ -49,7 +49,7 @@ const jitter = (v, pct = 0.25) => Math.max(0, v * (1 + (Math.random() * 2 - 1) *
 export async function listContainers() {
   return state
     .map((c) => ({
-      id: c.id, name: c.name, image: c.image, project: c.project, restart: c.restart,
+      id: c.id, name: c.name, image: c.image, project: c.project, restart: c.restart, rebuildable: c.rebuildable,
       state: c.state, ports: c.ports, self: c.self,
       status: c.state === 'running' ? `Up ${3 + (c.name.length % 9)} days` : `Exited ${Math.round((now - c.stoppedAt) / 86_400_000)} days ago`,
     }))
@@ -164,4 +164,42 @@ export async function cleanupRun(body = {}) {
     if (junk.volumes.some((x) => x.name === v)) { junk.volumes = junk.volumes.filter((x) => x.name !== v); removed.volumes += 1; }
   }
   return { removed, reclaimed, failed };
+}
+
+const demoJobs = new Map();
+const rebuildScript = (project, pull) => [
+  ...(pull ? [`$ docker compose -p ${project} pull --ignore-buildable`, ' ✔ Image redis:7-alpine  Pulled', ' ✔ Image postgres:16     Pulled'] : []),
+  `$ docker compose -p ${project} up -d --build`,
+  '#1 [api internal] load build definition from Dockerfile',
+  '#2 [api internal] load metadata for docker.io/library/node:22-alpine',
+  '#3 [api 1/5] FROM docker.io/library/node:22-alpine',
+  '#4 [api 3/5] RUN npm ci --omit=dev',
+  '#5 [api 5/5] COPY . .',
+  '#6 [api] exporting to image',
+  ' Container shop-api  Recreate',
+  ' Container shop-api  Recreated',
+  ' Container shop-api  Started',
+];
+
+export async function startRebuild(project, { pull = false } = {}) {
+  const members = state.filter((c) => c.project === project);
+  if (!members.length) throw err(404, 'project not found');
+  if (!members.some((c) => c.rebuildable)) throw err(409, 'Compose files are not reachable from Captain.');
+  if ([...demoJobs.values()].some((j) => j.project === project && Date.now() - j.startedAt < j.lines.length * 450)) {
+    throw err(409, `a rebuild of "${project}" is already running`);
+  }
+  const id = `demo-${demoJobs.size + 1}`;
+  demoJobs.set(id, { id, project, startedAt: Date.now(), lines: rebuildScript(project, pull) });
+  return { jobId: id };
+}
+
+export async function getJob(id) {
+  const j = demoJobs.get(id);
+  if (!j) throw err(404, 'no such job');
+  const shown = Math.min(j.lines.length, Math.floor((Date.now() - j.startedAt) / 450) + 1);
+  const done = shown >= j.lines.length;
+  return {
+    id, project: j.project, status: done ? 'done' : 'running', exitCode: done ? 0 : null,
+    output: `${j.lines.slice(0, shown).join('\n')}\n`, step: 1, steps: 1, startedAt: j.startedAt,
+  };
 }

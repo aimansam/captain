@@ -10,6 +10,7 @@ LABEL org.opencontainers.image.title="Captain" \
       org.opencontainers.image.description="A tiny Docker dashboard that shows what's stale before you clean it." \
       org.opencontainers.image.source="https://github.com/aimansam/captain" \
       org.opencontainers.image.licenses="MIT"
+RUN apk add --no-cache docker-cli docker-cli-compose docker-cli-buildx
 WORKDIR /app
 ENV NODE_ENV=production WEB_DIR=/app/web-dist
 COPY server/package.json ./

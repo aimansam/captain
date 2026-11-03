@@ -55,6 +55,7 @@ services:
 - **Live overview**: running count, CPU, memory and disk usage, plus per-container CPU, RAM and network, refreshed every 3 seconds.
 - **One-click control**: start, stop and restart any container. Stopping Captain itself is blocked.
 - **Compose projects**: containers are grouped by project, with a single **Up** and **Down** button per project. Down only stops containers; nothing is removed.
+- **Rebuild a project**: one click runs `docker compose up -d --build` with live output, optionally pulling newer images first. Containers whose image or settings changed are recreated; volumes are kept. See [Enabling Rebuild](#enabling-rebuild).
 - **Auto-start switch**: choose per container whether it comes back after a reboot or Docker restart (`unless-stopped` vs `no`).
 - **Cleanup with a preview**: see stopped containers, dangling images, build cache, unused networks and unused volumes, then tick exactly what to remove. Containers stopped 7+ days are pre-selected, and **volumes are never pre-selected**, because deleting one destroys its data. Running containers and in-use volumes are refused.
 - **Logs**: tail the last 200 lines of any container.
@@ -64,6 +65,8 @@ services:
 | Dashboard | Cleanup preview |
 |---|---|
 | ![Dashboard](docs/dashboard-dark.png) | ![Cleanup](docs/cleanup.png) |
+| **Rebuild with live output** | **Logs** |
+| ![Rebuild](docs/rebuild.png) | ![Logs](docs/logs.png) |
 
 ## Where it fits
 
@@ -75,6 +78,26 @@ Plenty of good Docker tools exist. Captain aims at a specific gap.
 | Portainer | Full container platform: stacks, registries, users, teams, Kubernetes. |
 | Dockge | Editing and managing compose stacks and their files. |
 | Dozzle | Real-time log viewing. |
+
+## Enabling Rebuild
+
+Rebuild needs the compose files, which live on your host, not in Docker. Mount the folders that hold your compose projects **read-only, at the same path as on the host**:
+
+```yaml
+services:
+  captain:
+    image: ghcr.io/aimansam/captain:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /srv/stacks:/srv/stacks:ro        # same path inside and outside
+```
+
+Captain reads each project's location from its compose labels and shows a **Rebuild** button only when the files are reachable. Notes:
+
+- It runs `docker compose -p <project> up -d --build` (plus `pull` if you tick the box), with Captain's own secrets kept out of the process environment.
+- Captain can't rebuild its own project (it would stop itself). Run `docker compose up -d --build` on the host for that.
+- Rebuild runs the build steps in your compose files, so only mount folders you trust. It's disabled in `READ_ONLY` mode.
+- The image includes the Docker CLI, Compose and Buildx for this feature, which makes it larger than a bare Node image.
 
 ## Configuration
 
@@ -95,7 +118,7 @@ Captain mounts the Docker socket. **Anyone who can sign in can control every con
 - Don't expose it directly to the internet. Keep it on your LAN, behind a VPN, or behind a reverse proxy or tunnel with its own authentication, and set `SECURE_COOKIE=true` when using HTTPS.
 - Use `READ_ONLY=true` if you only want to look.
 
-Captain has no endpoints for running commands, pulling images or creating containers. See [SECURITY.md](SECURITY.md) to report a vulnerability.
+Captain has no endpoint for running arbitrary commands or creating containers. The only thing it executes is `docker compose up` for a project's own compose files, when you press Rebuild. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## Development
 
@@ -115,7 +138,7 @@ Regenerate the screenshots and demo GIF with `scripts/screenshots.py` (see the f
 - Crash and unexpected-stop alerts with an event timeline
 - CPU and memory history charts
 - Healthcheck and restart-loop indicators
-- Image update checks
+- Per-container image update checks
 
 Ideas and pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 

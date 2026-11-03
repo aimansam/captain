@@ -28,3 +28,6 @@ export const Anchor = () => (
 export const Broom = () => (
   <svg {...base}><path d="M19 3l-7 7" /><path d="M14 8l4 4-6 6c-2 2-6 3-9 3 0-3 1-7 3-9l6-6z" /><path d="M7 15l2 2" /></svg>
 );
+export const Layers = () => (
+  <svg {...base}><polygon points="12 3 3 8 12 13 21 8 12 3" /><polyline points="3 12 12 17 21 12" /><polyline points="3 16 12 21 21 16" /></svg>
+);

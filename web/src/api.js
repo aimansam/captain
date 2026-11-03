@@ -28,6 +28,9 @@ export const api = {
     json(`/containers/${id}/autostart`, { method: 'POST', body: JSON.stringify({ enabled }) }),
   cleanupPreview: () => json('/cleanup/preview'),
   cleanup: (selection) => json('/cleanup', { method: 'POST', body: JSON.stringify(selection) }),
+  rebuild: (name, pull) =>
+    json(`/projects/${encodeURIComponent(name)}/rebuild`, { method: 'POST', body: JSON.stringify({ pull }) }),
+  job: (id) => json(`/jobs/${id}`),
   projectAction: (name, action) =>
     json(`/projects/${encodeURIComponent(name)}/${action}`, { method: 'POST' }),
   logs: async (id, tail = 200) => (await request(`/containers/${id}/logs?tail=${tail}`)).text(),

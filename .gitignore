@@ -3,3 +3,4 @@ web/dist
 .env
 *.log
 __pycache__
+docker-compose.override.yml
