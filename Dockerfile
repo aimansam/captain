@@ -1,4 +1,4 @@
-FROM node:22-alpine AS web
+FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 WORKDIR /web
 COPY web/package.json ./
 RUN npm install
@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Captain" \
 WORKDIR /app
 ENV NODE_ENV=production WEB_DIR=/app/web-dist
 COPY server/package.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --omit=optional
 COPY server/src ./src
 COPY --from=web /web/dist ./web-dist
 EXPOSE 8787
