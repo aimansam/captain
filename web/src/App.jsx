@@ -5,6 +5,7 @@ import LogsDrawer from './components/LogsDrawer.jsx';
 import CleanupModal from './components/CleanupModal.jsx';
 import RebuildModal from './components/RebuildModal.jsx';
 import SecurityView from './components/SecurityView.jsx';
+import ThemeToggle from './components/ThemeToggle.jsx';
 import { Anchor, Broom, Search } from './components/Icons.jsx';
 
 const POLL_MS = 3000;
@@ -25,6 +26,8 @@ function Login({ onDone, demo }) {
   };
 
   return (
+    <>
+    <div className="corner"><ThemeToggle /></div>
     <form className="login" onSubmit={submit}>
       <div className="logo"><Anchor /></div>
       <h1>Captain</h1>
@@ -40,6 +43,7 @@ function Login({ onDone, demo }) {
       <button type="submit">Sign in</button>
       {error && <p className="error">{error}</p>}
     </form>
+    </>
   );
 }
 
@@ -123,7 +127,10 @@ function Dashboard({ onLogout, readOnly, demo }) {
       <header className="topbar">
         <div className="brand"><Anchor /><h1>Captain</h1></div>
         {system && <span className="muted small">Docker {system.dockerVersion}</span>}
-        <button className="ghost" onClick={async () => { await api.logout(); onLogout(); }}>Log out</button>
+        <div className="top-actions">
+          <ThemeToggle />
+          <button className="ghost" onClick={async () => { await api.logout(); onLogout(); }}>Log out</button>
+        </div>
       </header>
 
       <nav className="seg main-tabs">

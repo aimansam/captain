@@ -66,7 +66,8 @@ volumes:
 - **Auto-start switch**: choose per container whether it comes back after a reboot or Docker restart (`unless-stopped` vs `no`).
 - **Cleanup with a preview**: see stopped containers, dangling images, build cache, unused networks and unused volumes, then tick exactly what to remove. Containers stopped 7+ days are pre-selected, and **volumes are never pre-selected**, because deleting one destroys its data. Running containers and in-use volumes are refused.
 - **Logs**: tail the last 200 lines of any container.
-- **Search and filter** by name, image or project, and light and dark themes.
+- **Search and filter** by name, image or project.
+- **Light, dark or system theme**: switch with the button in the top bar; your choice is remembered.
 - **Light**: one small container, no database, no agent.
 
 | Security checks | Vulnerability scan |

@@ -1,12 +1,22 @@
+/* Themes: light by default; dark via the OS setting (system) or an explicit data-theme choice. */
 :root {
+  color-scheme: light;
   --bg: #f5f6f8; --panel: #ffffff; --panel-2: #f9fafb; --line: #e5e7eb; --text: #111827;
   --muted: #6b7280; --accent: #2563eb; --ok: #16a34a; --bad: #dc2626; --warn: #d97706;
   --ok-bg: #dcfce7; --bad-bg: #fee2e2; --warn-bg: #fef3c7; --idle-bg: #f3f4f6;
   --shadow: 0 1px 2px rgba(16, 24, 40, .06);
   --log-bg: #0b0f14; --log-text: #d1d5db;
 }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d1117; --panel: #161b22; --panel-2: #1b2129; --line: #2a313c; --text: #e6edf3;
+  --muted: #8b949e; --accent: #4c8dff; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+  --ok-bg: #12301c; --bad-bg: #3b1618; --warn-bg: #3a2b0c; --idle-bg: #21262d;
+  --shadow: none;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #0d1117; --panel: #161b22; --panel-2: #1b2129; --line: #2a313c; --text: #e6edf3;
     --muted: #8b949e; --accent: #4c8dff; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
     --ok-bg: #12301c; --bad-bg: #3b1618; --warn-bg: #3a2b0c; --idle-bg: #21262d;
@@ -57,7 +67,8 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in sr
 .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--accent); }
 .brand h1 { color: var(--text); }
-.topbar .ghost { margin-left: auto; }
+.top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.corner { position: fixed; top: 16px; right: 16px; }
 
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
 .card { display: flex; flex-direction: column; gap: 2px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }

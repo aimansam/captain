@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Theme toggle (system, light, dark) in the top bar and on the login screen; the choice is remembered
 - Reframed as a container-security tool: new tagline, README and social preview now lead with security checks and the vulnerability scan
 - Security tab: configuration checks for every container and the Docker daemon, with fix hints and an ignore label for accepted risks
 - Image vulnerability scanning with Trivy (results persisted in `/data`), CVE list with severity and fixable-only filters
