@@ -3,7 +3,7 @@ import ContainerRow from './ContainerRow.jsx';
 import { Chevron, Layers, Play, Stop } from './Icons.jsx';
 
 export default function ProjectGroup({
-  name, isProject, readOnly, containers, stats, pending, onProject, onRebuild, onAction, onLogs, onAutoStart,
+  name, isProject, readOnly, containers, stats, pending, onProject, onRebuild, onAction, onLogs, onAutoStart, onRisk,
 }) {
   const [open, setOpen] = useState(true);
   const running = containers.filter((c) => c.state === 'running').length;
@@ -45,6 +45,7 @@ export default function ProjectGroup({
               onAction={onAction}
               onLogs={onLogs}
               onAutoStart={onAutoStart}
+              onRisk={onRisk}
               readOnly={readOnly}
             />
           ))}

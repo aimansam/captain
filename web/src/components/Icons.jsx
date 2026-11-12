@@ -31,3 +31,6 @@ export const Broom = () => (
 export const Layers = () => (
   <svg {...base}><polygon points="12 3 3 8 12 13 21 8 12 3" /><polyline points="3 12 12 17 21 12" /><polyline points="3 16 12 21 21 16" /></svg>
 );
+export const Shield = () => (
+  <svg {...base} width="13" height="13"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" /></svg>
+);

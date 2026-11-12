@@ -1,5 +1,7 @@
 import os from 'node:os';
 import Docker from 'dockerode';
+import { buildReport, daemonReport, evaluate, riskOf } from './security.js';
+import { createScanner, validImageId } from './scanner.js';
 import { commandsFor, composeSpec, getJob as jobStatus, isRebuildable, startJob, validProjectName } from './rebuild.js';
 
 const docker = new Docker({ socketPath: process.env.DOCKER_SOCKET || '/var/run/docker.sock' });
@@ -9,20 +11,27 @@ const selfId = os.hostname();
 
 const isSelf = (id) => id.startsWith(selfId) || selfId.startsWith(id.slice(0, 12));
 
-const policyCache = new Map();
-const POLICY_TTL_MS = 30_000;
+// One docker inspect per container, cached briefly: feeds restart policy, security findings and risk.
+const inspectCache = new Map();
+const INSPECT_TTL_MS = 30_000;
 
-async function restartPolicies(ids) {
+async function refreshInspect(ids) {
   const now = Date.now();
   await Promise.all(
     ids.map(async (id) => {
-      const hit = policyCache.get(id);
-      if (hit && now - hit.at < POLICY_TTL_MS) return;
+      const hit = inspectCache.get(id);
+      if (hit && now - hit.at < INSPECT_TTL_MS) return;
       try {
         const info = await docker.getContainer(id).inspect();
-        policyCache.set(id, { name: info.HostConfig?.RestartPolicy?.Name || 'no', at: now });
+        const findings = evaluate(info, { self: isSelf(id) });
+        inspectCache.set(id, {
+          restart: info.HostConfig?.RestartPolicy?.Name || 'no',
+          findings,
+          risk: riskOf(findings),
+          at: now,
+        });
       } catch {
-        policyCache.delete(id);
+        inspectCache.delete(id);
       }
     }),
   );
@@ -32,12 +41,12 @@ export async function setAutoStart(id, enabled) {
   await docker.getContainer(id).update({
     RestartPolicy: { Name: enabled ? 'unless-stopped' : 'no' },
   });
-  policyCache.delete(id);
+  inspectCache.delete(id);
 }
 
 export async function listContainers() {
   const items = await docker.listContainers({ all: true });
-  await restartPolicies(items.map((c) => c.Id));
+  await refreshInspect(items.map((c) => c.Id));
   const reachable = new Map();
   const rebuildable = (labels) => {
     const spec = composeSpec(labels);
@@ -54,7 +63,8 @@ export async function listContainers() {
       state: c.State,
       status: c.Status,
       project: c.Labels?.[PROJECT_LABEL] || null,
-      restart: policyCache.get(c.Id)?.name || 'no',
+      restart: inspectCache.get(c.Id)?.restart || 'no',
+      risk: (({ high: 'high', medium: 'medium' })[inspectCache.get(c.Id)?.risk]) || null,
       rebuildable: rebuildable(c.Labels),
       ports: (c.Ports || [])
         .filter((p) => p.PublicPort)
@@ -311,3 +321,70 @@ export async function startRebuild(project, { pull = false } = {}) {
 }
 
 export const getJob = async (id) => jobStatus(id);
+
+// ---- security -------------------------------------------------------------
+
+const scanner = createScanner();
+
+export async function securityChecks() {
+  const [items, info] = await Promise.all([listContainers(), docker.info()]);
+  const containers = items.map((c) => ({
+    id: c.id, name: c.name, project: c.project,
+    findings: inspectCache.get(c.id)?.findings || [],
+  }));
+  return { ...buildReport(containers), daemon: daemonReport(info) };
+}
+
+async function imageTargets() {
+  const [containers, images] = await Promise.all([
+    docker.listContainers({ all: true }),
+    docker.listImages(),
+  ]);
+  const byId = new Map(images.map((im) => [im.Id, {
+    imageId: im.Id,
+    tags: (im.RepoTags || []).filter((t) => t !== '<none>:<none>'),
+    size: im.Size,
+    containers: [],
+  }]));
+  for (const c of containers) byId.get(c.ImageID)?.containers.push((c.Names?.[0] || c.Id).replace(/^\//, ''));
+  return [...byId.values()].filter((t) => t.containers.length);
+}
+
+export async function securityStatus() {
+  return { ...(await scanner.info()), ...scanner.busy() };
+}
+
+export async function securityImages() {
+  const targets = await imageTargets();
+  scanner.forget(new Set(targets.map((t) => t.imageId)));
+  return targets
+    .map((t) => ({ ...t, ...scanner.summary(t.imageId) }))
+    .sort((a, b) => b.containers.length - a.containers.length || (a.tags[0] || '').localeCompare(b.tags[0] || ''));
+}
+
+export async function securityImage(imageId) {
+  if (!validImageId(imageId)) throw httpError(400, 'bad image id');
+  const detail = scanner.detail(imageId);
+  if (!detail) throw httpError(404, 'image has not been scanned');
+  return detail;
+}
+
+export async function securityScan({ imageId, all = false } = {}) {
+  if (!(await scanner.info()).available) throw httpError(503, 'The vulnerability scanner (trivy) is not available in this image.');
+  const targets = await imageTargets();
+  let ids;
+  if (all) {
+    ids = targets.map((t) => t.imageId);
+  } else {
+    if (!validImageId(imageId)) throw httpError(400, 'bad image id');
+    if (!targets.some((t) => t.imageId === imageId)) throw httpError(404, 'image is not used by any container');
+    ids = [imageId];
+  }
+  const queued = ids.filter((id) => scanner.scan(id)).length;
+  return { queued };
+}
+
+const intervalHours = Number(process.env.SCAN_INTERVAL_HOURS) || 0;
+if (intervalHours > 0) {
+  setInterval(() => securityScan({ all: true }).catch(() => {}), intervalHours * 3_600_000).unref();
+}

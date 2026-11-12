@@ -15,8 +15,9 @@ export function createApp({ password, secret, backend, demo = false, readOnly = 
   app.post('/api/logout', auth.logout);
   app.get('/api/me', (req, res) => res.json({ authed: auth.isAuthed(req), demo, readOnly }));
 
+  // Scans only read images, so they stay available in read-only mode.
   const blockWrites = (req, res, next) =>
-    readOnly && req.method !== 'GET'
+    readOnly && req.method !== 'GET' && req.path !== '/security/scan'
       ? res.status(403).json({ error: 'read-only mode' })
       : next();
 

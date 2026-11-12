@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Security tab: configuration checks for every container and the Docker daemon, with fix hints and an ignore label for accepted risks
+- Image vulnerability scanning with Trivy (results persisted in `/data`), CVE list with severity and fixable-only filters
+- Risk badge on dashboard rows for containers with high or medium findings
 - Rebuild a compose project from the UI (`docker compose up -d --build`) with live output and an optional "pull newer images first"
 - Build-time fix: faster multi-arch image builds
 

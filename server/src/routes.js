@@ -13,6 +13,14 @@ export function createRoutes(d) {
   r.get('/stats', wrap(async (_q, res) => res.json(await d.allStats())));
   r.get('/system', wrap(async (_q, res) => res.json(await d.system())));
 
+  r.get('/security/checks', wrap(async (_q, res) => res.json(await d.securityChecks())));
+  r.get('/security/status', wrap(async (_q, res) => res.json(await d.securityStatus())));
+  r.get('/security/images', wrap(async (_q, res) => res.json(await d.securityImages())));
+  r.get('/security/images/:id', wrap(async (req, res) => res.json(await d.securityImage(req.params.id))));
+  r.post('/security/scan', wrap(async (req, res) => {
+    res.status(202).json(await d.securityScan({ imageId: req.body?.imageId, all: req.body?.all === true }));
+  }));
+
   r.post('/containers/:id/autostart', wrap(async (req, res) => {
     await d.setAutoStart(req.params.id, req.body?.enabled === true);
     res.json({ ok: true });

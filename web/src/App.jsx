@@ -4,6 +4,7 @@ import ProjectGroup from './components/ProjectGroup.jsx';
 import LogsDrawer from './components/LogsDrawer.jsx';
 import CleanupModal from './components/CleanupModal.jsx';
 import RebuildModal from './components/RebuildModal.jsx';
+import SecurityView from './components/SecurityView.jsx';
 import { Anchor, Broom, Search } from './components/Icons.jsx';
 
 const POLL_MS = 3000;
@@ -42,13 +43,15 @@ function Login({ onDone, demo }) {
   );
 }
 
-function Dashboard({ onLogout, readOnly }) {
+function Dashboard({ onLogout, readOnly, demo }) {
   const [containers, setContainers] = useState([]);
   const [stats, setStats] = useState({});
   const [system, setSystem] = useState(null);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(new Set());
   const [logTarget, setLogTarget] = useState(null);
+  const [view, setView] = useState('containers');
+  const [focus, setFocus] = useState('');
   const [showCleanup, setShowCleanup] = useState(false);
   const [rebuildProject, setRebuildProject] = useState(null);
   const [query, setQuery] = useState('');
@@ -123,7 +126,16 @@ function Dashboard({ onLogout, readOnly }) {
         <button className="ghost" onClick={async () => { await api.logout(); onLogout(); }}>Log out</button>
       </header>
 
-      {system && (
+      <nav className="seg main-tabs">
+        <button className={view === 'containers' ? 'active' : ''} onClick={() => setView('containers')}>Containers</button>
+        <button className={view === 'security' ? 'active' : ''} onClick={() => { setFocus(''); setView('security'); }}>Security</button>
+      </nav>
+
+      {error && <p className="banner">{error}</p>}
+
+      {view === 'security' && <SecurityView key={focus} demo={demo} initialFilter={focus} />}
+
+      {view === 'containers' && system && (
         <div className="cards">
           <div className="card">
             <span className="label">Containers</span>
@@ -150,6 +162,7 @@ function Dashboard({ onLogout, readOnly }) {
         </div>
       )}
 
+      {view === 'containers' && (
       <div className="toolbar">
         <label className="search">
           <Search />
@@ -162,10 +175,9 @@ function Dashboard({ onLogout, readOnly }) {
         </div>
         {!readOnly && <button className="ghost" onClick={() => setShowCleanup(true)}><Broom /> Cleanup</button>}
       </div>
+      )}
 
-      {error && <p className="banner">{error}</p>}
-
-      {groups.map(([name, items]) => (
+      {view === 'containers' && groups.map(([name, items]) => (
         <ProjectGroup
           key={name}
           name={name}
@@ -175,6 +187,7 @@ function Dashboard({ onLogout, readOnly }) {
           stats={stats}
           pending={pending}
           onRebuild={setRebuildProject}
+          onRisk={(c) => { setFocus(c.name); setView('security'); }}
           onProject={(action) =>
             run(`p:${name}`, () => api.projectAction(name, action),
               action === 'down' ? `Stop all running containers in "${name}"?` : null)}
@@ -187,7 +200,7 @@ function Dashboard({ onLogout, readOnly }) {
         />
       ))}
 
-      {groups.length === 0 && containers.length > 0 && <p className="empty">No containers match.</p>}
+      {view === 'containers' && groups.length === 0 && containers.length > 0 && <p className="empty">No containers match.</p>}
 
       {rebuildProject && (
         <RebuildModal project={rebuildProject} onClose={() => { setRebuildProject(null); refresh(); }} />
@@ -214,6 +227,6 @@ export default function App() {
 
   if (authed === null) return null;
   return authed
-    ? <Dashboard onLogout={onLogout} readOnly={meta.readOnly} />
+    ? <Dashboard onLogout={onLogout} readOnly={meta.readOnly} demo={meta.demo} />
     : <Login onDone={() => setAuthed(true)} demo={meta.demo} />;
 }

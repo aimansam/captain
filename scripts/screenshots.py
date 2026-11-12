@@ -35,12 +35,36 @@ def new_page(browser, scheme, scale=2):
     return ctx, page
 
 
+def security_shots(page):
+    page.get_by_role("button", name="Security", exact=True).click()
+    page.wait_for_selector(".check")
+    for head in page.locator(".check-head").all()[:2]:
+        head.click()
+    page.wait_for_timeout(300)
+    page.screenshot(path=OUT / "security.png")
+
+    page.get_by_role("button", name="Vulnerabilities").click()
+    page.wait_for_selector(".img")
+    row = page.locator('.img:has(b:text-is("acme/shop-web:2.4.1"))')
+    row.get_by_role("button", name="Scan", exact=True).click()
+    page.wait_for_selector(".spinner")
+    page.wait_for_function("() => !document.querySelector('.spinner')", timeout=15000)
+    page.locator('.img:has(b:text-is("acme/shop-api:2.4.1")) button[aria-label="Show findings"]').click()
+    page.wait_for_selector(".tbl")
+    page.locator(".tbl").scroll_into_view_if_needed()
+    page.wait_for_timeout(300)
+    page.screenshot(path=OUT / "vulnerabilities.png")
+    page.get_by_role("button", name="Containers", exact=True).click()
+    page.wait_for_selector(".row")
+
+
 def static_shots(browser):
     for scheme in ("dark", "light"):
         ctx, page = new_page(browser, scheme)
         login(page)
         page.screenshot(path=OUT / f"dashboard-{scheme}.png")
         if scheme == "dark":
+            security_shots(page)
             page.get_by_role("button", name="Cleanup").click()
             page.wait_for_selector(".modal")
             page.wait_for_timeout(400)

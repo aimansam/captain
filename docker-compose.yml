@@ -11,8 +11,14 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:-}
       SECURE_COOKIE: ${SECURE_COOKIE:-false}
       READ_ONLY: ${READ_ONLY:-false}
+      SCAN_INTERVAL_HOURS: ${SCAN_INTERVAL_HOURS:-0}
+      TRIVY_DB_REPOSITORY: ${TRIVY_DB_REPOSITORY:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - captain-data:/data   # vulnerability database cache and scan results
       # Optional: enable the per-project Rebuild button. Mount the folders that hold your
       # compose projects read-only, at the SAME path as on the host.
       # - /srv/stacks:/srv/stacks:ro
+
+volumes:
+  captain-data:

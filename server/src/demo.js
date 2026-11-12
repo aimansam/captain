@@ -1,4 +1,6 @@
 // In-memory fake Docker backend: same interface as docker.js, used when DEMO=true.
+import crypto from 'node:crypto';
+import { buildReport, daemonReport, evaluate, riskOf } from './security.js';
 const GB = 1024 ** 3;
 const MB = 1024 ** 2;
 const now = Date.now();
@@ -50,6 +52,7 @@ export async function listContainers() {
   return state
     .map((c) => ({
       id: c.id, name: c.name, image: c.image, project: c.project, restart: c.restart, rebuildable: c.rebuildable,
+      risk: ['high', 'medium'].includes(riskOf(evaluate(inspectOf(c), { self: c.self }))) ? riskOf(evaluate(inspectOf(c), { self: c.self })) : null,
       state: c.state, ports: c.ports, self: c.self,
       status: c.state === 'running' ? `Up ${3 + (c.name.length % 9)} days` : `Exited ${Math.round((now - c.stoppedAt) / 86_400_000)} days ago`,
     }))
@@ -202,4 +205,150 @@ export async function getJob(id) {
     id, project: j.project, status: done ? 'done' : 'running', exitCode: done ? 0 : null,
     output: `${j.lines.slice(0, shown).join('\n')}\n`, step: 1, steps: 1, startedAt: j.startedAt,
   };
+}
+
+// ---- security (fake data, real check logic) ------------------------------
+
+const open = (port) => ({ [`${port}/tcp`]: [{ HostIp: '0.0.0.0', HostPort: String(port) }] });
+const SEC = {
+  'shop-postgres': { user: 'postgres', memory: 1 * GB, hc: true, bindings: open(5432) },
+  'shop-redis': { user: 'redis', memory: 256 * MB, hc: true },
+  'shop-api': { memory: 512 * MB, hc: true },
+  'shop-web': { memory: 512 * MB, hc: true },
+  jellyfin: { memory: 2 * GB, hc: true, bindings: open(8096) },
+  qbittorrent: { user: '1000', memory: 1 * GB, hc: true, bindings: open(8080) },
+  sonarr: { user: '1000', memory: 512 * MB },
+  radarr: { user: '1000', memory: 512 * MB },
+  grafana: { user: '472', memory: 512 * MB, hc: true },
+  prometheus: { user: 'nobody', memory: 1 * GB, hc: true },
+  'node-exporter': { user: 'nobody', pid: 'host', labels: { 'captain.security.ignore': 'host-pid' }, hc: true },
+  'nginx-proxy': { memory: 256 * MB, hc: true, bindings: { ...open(80), ...open(443) } },
+  pihole: { net: 'host', caps: ['NET_ADMIN'], hc: true },
+};
+
+function inspectOf(c) {
+  const o = SEC[c.name] || {};
+  const local = Object.fromEntries(c.ports.map((p) => {
+    const [host, priv] = p.split(':');
+    return [`${priv}/tcp`, [{ HostIp: '127.0.0.1', HostPort: host }]];
+  }));
+  return {
+    Id: c.id,
+    Config: {
+      User: o.user ?? '', Image: c.image, Labels: o.labels || {},
+      Healthcheck: o.hc ? { Test: ['CMD', 'true'] } : undefined,
+    },
+    HostConfig: {
+      Privileged: false, NetworkMode: o.net || 'bridge', PidMode: o.pid || '', CapAdd: o.caps || [],
+      Memory: o.memory || 0, SecurityOpt: [], PortBindings: o.bindings || local,
+    },
+    Mounts: c.self ? [{ Type: 'bind', Source: '/var/run/docker.sock', RW: true }] : [],
+  };
+}
+
+export async function securityChecks() {
+  const containers = state.map((c) => ({
+    id: c.id, name: c.name, project: c.project, findings: evaluate(inspectOf(c), { self: c.self }),
+  }));
+  return {
+    ...buildReport(containers),
+    daemon: daemonReport({
+      SecurityOptions: ['name=seccomp,profile=builtin', 'name=cgroupns'],
+      ServerVersion: '27.3.1', Driver: 'overlay2', CgroupVersion: '2',
+    }),
+  };
+}
+
+const imageId = (image) => `sha256:${crypto.createHash('sha256').update(image).digest('hex')}`;
+
+// counts per image: [critical, high, medium, low]; undefined = not scanned yet
+const FAKE_COUNTS = {
+  'jellyfin/jellyfin:10.9': [0, 2, 9, 14], 'linuxserver/sonarr:4': [1, 4, 11, 20],
+  'linuxserver/radarr:5': [1, 4, 11, 20], 'linuxserver/qbittorrent:4.6': [0, 3, 8, 12],
+  'acme/shop-api:2.4.1': [2, 7, 15, 31], 'postgres:16': [0, 1, 6, 18], 'redis:7-alpine': [0, 0, 2, 5],
+  'grafana/grafana:11': [0, 2, 5, 9], 'prom/prometheus:v2.54': [0, 1, 3, 4], 'prom/node-exporter:v1.8': [0, 0, 1, 2],
+  'nginx:1.27-alpine': [0, 1, 4, 6], 'pihole/pihole:2024.07': [0, 2, 7, 13], 'node:18': [3, 12, 28, 40],
+  'ghcr.io/aimansam/captain:latest': [0, 0, 2, 3],
+};
+const PKGS = ['openssl', 'libssl3', 'zlib', 'busybox', 'glibc', 'curl', 'libxml2', 'nghttp2', 'sqlite-libs', 'expat', 'libcrypto3', 'musl'];
+const SEV = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+
+function fakeVulns(image, counts) {
+  const seed = crypto.createHash('sha256').update(image).digest();
+  let n = 0;
+  const out = [];
+  counts.forEach((count, si) => {
+    for (let i = 0; i < Math.min(count, 40); i++, n++) {
+      const b = seed[n % seed.length];
+      const pkg = PKGS[(b + i) % PKGS.length];
+      const fixed = (b + i) % 3 === 0 ? '' : `1.${b % 9}.${(i % 7) + 1}`;
+      out.push({
+        id: `CVE-2024-${String(10000 + ((b * 131 + n * 977) % 40000))}`,
+        pkg, installed: `1.${b % 9}.0`, fixed, severity: SEV[si],
+        title: `Demo finding in ${pkg} (illustrative data)`,
+      });
+    }
+  });
+  return out;
+}
+
+const scans = new Map(); // imageId -> { startedAt }
+
+function scanState(image) {
+  const id = imageId(image);
+  const counts = FAKE_COUNTS[image];
+  const run = scans.get(id);
+  const sum = (c) => ({
+    critical: c[0], high: c[1], medium: c[2], low: c[3], unknown: 0,
+  });
+  const done = {
+    status: 'done', phase: null, scannedAt: Date.now() - 3 * 3_600_000, counts: counts && sum(counts),
+    total: counts?.reduce((a, b) => a + b, 0), fixable: counts && Math.round(counts.reduce((a, b) => a + b, 0) * 0.62),
+  };
+  if (run) {
+    const t = Date.now() - run.startedAt;
+    if (t < 1300) return { status: 'scanning', phase: 'updating-db' };
+    if (t < 2800) return { status: 'scanning', phase: 'scanning' };
+    return { ...done, scannedAt: run.startedAt + 2800 };
+  }
+  return counts && image !== 'acme/shop-web:2.4.1' && image !== 'nginx:latest' ? done : { status: 'never' };
+}
+
+function demoTargets() {
+  const map = new Map();
+  for (const c of state) {
+    if (!map.has(c.image)) map.set(c.image, { imageId: imageId(c.image), image: c.image, tags: [c.image], size: 120 * MB + (c.image.length * 7 * MB), containers: [] });
+    map.get(c.image).containers.push(c.name);
+  }
+  return [...map.values()];
+}
+
+export async function securityStatus() {
+  const scanning = [...scans.values()].some((s) => Date.now() - s.startedAt < 2800);
+  return { available: true, version: '0.76.2', dbUpdatedAt: new Date(Date.now() - 3 * 3_600_000).toISOString(), queued: 0, scanning };
+}
+
+export async function securityImages() {
+  return demoTargets()
+    .map(({ image, ...t }) => ({ ...t, ...scanState(image) }))
+    .sort((a, b) => b.containers.length - a.containers.length || a.tags[0].localeCompare(b.tags[0]));
+}
+
+export async function securityImage(id) {
+  const t = demoTargets().find((x) => x.imageId === id);
+  if (!t) throw err(404, 'image has not been scanned');
+  const s = scanState(t.image);
+  if (s.status !== 'done') throw err(404, 'image has not been scanned');
+  return { imageId: id, ...s, vulns: fakeVulns(t.image, FAKE_COUNTS[t.image] || [0, 0, 0, 0]) };
+}
+
+export async function securityScan({ imageId: id, all = false } = {}) {
+  const targets = demoTargets();
+  const chosen = all ? targets : targets.filter((t) => t.imageId === id);
+  if (!chosen.length) throw err(404, 'image is not used by any container');
+  for (const t of chosen) {
+    FAKE_COUNTS[t.image] ||= [0, 1, 3, 5];
+    scans.set(t.imageId, { startedAt: Date.now() });
+  }
+  return { queued: chosen.length };
 }

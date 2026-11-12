@@ -1,7 +1,7 @@
 import { fmtBytes } from '../api.js';
-import { Logs, Play, Restart, Stop } from './Icons.jsx';
+import { Logs, Play, Restart, Shield, Stop } from './Icons.jsx';
 
-export default function ContainerRow({ c, stat, busy, onAction, onLogs, onAutoStart, readOnly }) {
+export default function ContainerRow({ c, stat, busy, onAction, onLogs, onAutoStart, onRisk, readOnly }) {
   const autoStart = c.restart !== 'no';
   const running = c.state === 'running';
   const live = running && stat;
@@ -16,6 +16,11 @@ export default function ContainerRow({ c, stat, busy, onAction, onLogs, onAutoSt
           <div className="title">
             {c.name}
             {c.self && <span className="tag">this app</span>}
+            {c.risk && (
+              <button className={`risk ${c.risk}`} title={`${c.risk} security findings. Click to review.`} onClick={() => onRisk(c)}>
+                <Shield /> {c.risk}
+              </button>
+            )}
           </div>
           <div className="sub" title={c.image}>
             {c.image}

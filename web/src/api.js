@@ -31,6 +31,11 @@ export const api = {
   rebuild: (name, pull) =>
     json(`/projects/${encodeURIComponent(name)}/rebuild`, { method: 'POST', body: JSON.stringify({ pull }) }),
   job: (id) => json(`/jobs/${id}`),
+  securityChecks: () => json('/security/checks'),
+  securityStatus: () => json('/security/status'),
+  securityImages: () => json('/security/images'),
+  securityImage: (id) => json(`/security/images/${encodeURIComponent(id)}`),
+  securityScan: (body) => json('/security/scan', { method: 'POST', body: JSON.stringify(body) }),
   projectAction: (name, action) =>
     json(`/projects/${encodeURIComponent(name)}/${action}`, { method: 'POST' }),
   logs: async (id, tail = 200) => (await request(`/containers/${id}/logs?tail=${tail}`)).text(),
@@ -41,4 +46,13 @@ export const fmtBytes = (n) => {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1);
   return `${(n / 1024 ** i).toFixed(i ? 1 : 0)} ${units[i]}`;
+};
+
+export const ago = (ms) => {
+  if (!ms) return 'never';
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return `${Math.floor(s / 86400)} d ago`;
 };
