@@ -2,9 +2,9 @@
 
 # ⚓ Captain
 
-**A tiny Docker dashboard that shows what's stale before you clean it.**
+**Secure your Docker containers: audit risky settings, scan images for vulnerabilities, and manage everything from one small dashboard.**
 
-Start, stop and restart containers, bring whole compose projects up and down, flip auto-start on reboot, and reclaim disk space, with a preview of exactly what will be removed.
+Captain shows which of your containers are misconfigured or exposed and which images carry known vulnerabilities, then lets you fix things from the same page: start, stop, rebuild, switch auto-start, and clean up with a preview of exactly what will be removed.
 
 [![CI](https://github.com/aimansam/captain/actions/workflows/ci.yml/badge.svg)](https://github.com/aimansam/captain/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/aimansam/captain)](https://github.com/aimansam/captain/releases)
@@ -57,40 +57,42 @@ volumes:
 
 ## Features
 
+- **Security checks**: reviews every container's configuration (privileged, Docker socket mounted, host network, database ports open to the network, root user, no limits...) and the Docker daemon, with a fix hint for each finding. Containers with a high or medium finding get a badge right on the dashboard. See [Security checks](#security-checks).
+- **Vulnerability scan**: scans the images your containers actually use for known CVEs with [Trivy](https://github.com/aquasecurity/trivy), filter by severity or "fixable only", and link out to each CVE.
 - **Live overview**: running count, CPU, memory and disk usage, plus per-container CPU, RAM and network, refreshed every 3 seconds.
 - **One-click control**: start, stop and restart any container. Stopping Captain itself is blocked.
 - **Compose projects**: containers are grouped by project, with a single **Up** and **Down** button per project. Down only stops containers; nothing is removed.
 - **Rebuild a project**: one click runs `docker compose up -d --build` with live output, optionally pulling newer images first. Containers whose image or settings changed are recreated; volumes are kept. See [Enabling Rebuild](#enabling-rebuild).
-- **Security checks**: a Security tab that reviews every container's configuration (privileged, Docker socket mounted, host network, database ports open to the network, root user, no limits...) and the Docker daemon, with a fix hint for each finding. See [Security checks](#security-checks).
-- **Vulnerability scan**: scan the images your containers actually use for known CVEs with [Trivy](https://github.com/aquasecurity/trivy), filter by severity or "fixable only", and link out to each CVE.
 - **Auto-start switch**: choose per container whether it comes back after a reboot or Docker restart (`unless-stopped` vs `no`).
 - **Cleanup with a preview**: see stopped containers, dangling images, build cache, unused networks and unused volumes, then tick exactly what to remove. Containers stopped 7+ days are pre-selected, and **volumes are never pre-selected**, because deleting one destroys its data. Running containers and in-use volumes are refused.
 - **Logs**: tail the last 200 lines of any container.
 - **Search and filter** by name, image or project, and light and dark themes.
 - **Light**: one small container, no database, no agent.
 
-| Dashboard | Cleanup preview |
+| Security checks | Vulnerability scan |
 |---|---|
+| ![Security checks](docs/security.png) | ![Vulnerabilities](docs/vulnerabilities.png) |
+| **Dashboard** | **Cleanup preview** |
 | ![Dashboard](docs/dashboard-dark.png) | ![Cleanup](docs/cleanup.png) |
 | **Rebuild with live output** | **Logs** |
 | ![Rebuild](docs/rebuild.png) | ![Logs](docs/logs.png) |
-| **Security checks** | **Vulnerability scan** |
-| ![Security checks](docs/security.png) | ![Vulnerabilities](docs/vulnerabilities.png) |
 
 ## Where it fits
 
-Plenty of good Docker tools exist. Captain aims at a specific gap.
+Plenty of good Docker tools exist. Captain aims at a specific gap: seeing and fixing container security issues without leaving a small, day-to-day dashboard.
 
 | Tool | Best for |
 |---|---|
-| **Captain** | A small, single-purpose dashboard: quick start/stop, project up/down, and cleanup you can review before anything is deleted. |
+| **Captain** | Finding risky container settings and vulnerable images, then fixing and managing containers from one small dashboard. |
+| Trivy | The scanner Captain uses for image CVEs. Use it directly for CI pipelines and deeper scanning (secrets, IaC). |
+| Docker Bench for Security | A full CIS Docker Benchmark audit of the host. Captain's checks are a smaller, practical subset. |
 | Portainer | Full container platform: stacks, registries, users, teams, Kubernetes. |
 | Dockge | Editing and managing compose stacks and their files. |
 | Dozzle | Real-time log viewing. |
 
 ## Security checks
 
-The **Security** tab has two parts.
+The **Security** tab has two parts. They help you find and fix problems; they don't guarantee a setup is secure, and the config checks are a practical set rather than the full CIS Docker Benchmark.
 
 **Config checks** read each container's settings (nothing is scanned or installed) and group findings by severity:
 
@@ -152,7 +154,7 @@ Captain reads each project's location from its compose labels and shows a **Rebu
 | `TRIVY_DB_REPOSITORY` | Trivy default | Mirror for the vulnerability database, e.g. `public.ecr.aws/aquasecurity/trivy-db`. |
 | `DEMO` | `false` | Serve fake data instead of talking to Docker. |
 
-## Security
+## Securing Captain itself
 
 Captain mounts the Docker socket. **Anyone who can sign in can control every container on the host**, which is effectively root. Please:
 
@@ -182,6 +184,7 @@ Regenerate the screenshots and demo GIF with `scripts/screenshots.py` (see the f
 - CPU and memory history charts
 - Healthcheck and restart-loop indicators
 - Per-container image update checks
+- Wider coverage of the CIS Docker Benchmark
 
 Ideas and pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
 

@@ -6,6 +6,13 @@ const MB = 1024 ** 2;
 const now = Date.now();
 const days = (n) => now - n * 86_400_000;
 
+const ago = (t) => {
+  const mins = (Date.now() - t) / 60_000;
+  if (mins < 60) return 'just now';
+  if (mins < 1440) return `${Math.round(mins / 60)} hours ago`;
+  return `${Math.round(mins / 1440)} days ago`;
+};
+
 const mk = (name, image, project, o = {}) => ({
   id: Buffer.from(name).toString('hex').padEnd(64, '0').slice(0, 64),
   name, image, project,
@@ -54,7 +61,7 @@ export async function listContainers() {
       id: c.id, name: c.name, image: c.image, project: c.project, restart: c.restart, rebuildable: c.rebuildable,
       risk: ['high', 'medium'].includes(riskOf(evaluate(inspectOf(c), { self: c.self }))) ? riskOf(evaluate(inspectOf(c), { self: c.self })) : null,
       state: c.state, ports: c.ports, self: c.self,
-      status: c.state === 'running' ? `Up ${3 + (c.name.length % 9)} days` : `Exited ${Math.round((now - c.stoppedAt) / 86_400_000)} days ago`,
+      status: c.state === 'running' ? `Up ${3 + (c.name.length % 9)} days` : `Exited ${ago(c.stoppedAt)}`,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

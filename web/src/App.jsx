@@ -28,7 +28,7 @@ function Login({ onDone, demo }) {
     <form className="login" onSubmit={submit}>
       <div className="logo"><Anchor /></div>
       <h1>Captain</h1>
-      <p className="muted">Sign in to manage your containers</p>
+      <p className="muted">Sign in to secure and manage your containers</p>
       {demo && <p className="demo-hint">Demo mode with fake data. Password: <b>demo</b></p>}
       <input
         type="password"

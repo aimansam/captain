@@ -24,7 +24,7 @@ RUN apk add --no-cache curl \
 
 FROM node:22-alpine
 LABEL org.opencontainers.image.title="Captain" \
-      org.opencontainers.image.description="A tiny Docker dashboard that shows what's stale before you clean it." \
+      org.opencontainers.image.description="Secure your Docker containers: audit risky settings, scan images for vulnerabilities, and manage everything from one small dashboard." \
       org.opencontainers.image.source="https://github.com/aimansam/captain" \
       org.opencontainers.image.licenses="MIT"
 RUN apk add --no-cache docker-cli docker-cli-compose docker-cli-buildx

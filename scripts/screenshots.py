@@ -96,16 +96,36 @@ def demo_gif(browser):
         img = img.resize((900, round(900 * img.height / img.width)), Image.LANCZOS)
         frames.append((img, ms))
 
-    snap(1800)
-    page.locator('.row:has(.title:text-is("jellyfin"))').locator(".switch").click()
-    page.wait_for_timeout(700)
+    # 1. config checks
+    page.get_by_role("button", name="Security", exact=True).click()
+    page.wait_for_selector(".check")
+    for head in page.locator(".check-head").all()[:2]:
+        head.click()
+    page.wait_for_timeout(400)
+    snap(2400)
+
+    # 2. vulnerability scan: mid-scan, then the CVE list
+    page.get_by_role("button", name="Vulnerabilities").click()
+    page.wait_for_selector(".img")
+    web = page.locator('.img:has(b:text-is("acme/shop-web:2.4.1"))')
+    web.locator(".img-row > button").last.click()
+    page.wait_for_selector(".spinner")
+    page.wait_for_timeout(300)
     snap(1500)
+    page.wait_for_function("() => !document.querySelector('.spinner')", timeout=15000)
+    page.locator('.img:has(b:text-is("acme/shop-api:2.4.1")) button[aria-label="Show findings"]').click()
+    page.wait_for_selector(".tbl")
+    page.wait_for_timeout(300)
+    snap(2600)
+
+    # 3. back on the dashboard: risk badges, then act
+    page.get_by_role("button", name="Containers", exact=True).click()
+    page.wait_for_selector(".row")
+    page.wait_for_timeout(1200)
+    snap(2200)
     page.locator('.group:has(h2:text-is("shop"))').get_by_role("button", name="Down").click()
     page.wait_for_timeout(1200)
-    snap(1800)
-    page.locator('.group:has(h2:text-is("shop"))').get_by_role("button", name="Up").click()
-    page.wait_for_timeout(1500)
-    snap(1500)
+    snap(1700)
     page.get_by_role("button", name="Cleanup").click()
     page.wait_for_selector(".modal")
     page.wait_for_timeout(500)
@@ -120,14 +140,16 @@ def demo_gif(browser):
 
 
 def social_preview(browser):
-    shot = base64.b64encode((OUT / "dashboard-dark.png").read_bytes()).decode()
+    shot = base64.b64encode((OUT / "security.png").read_bytes()).decode()
     html = f"""<html><body style="margin:0;width:1280px;height:640px;overflow:hidden;
       background:linear-gradient(135deg,#0d1117 0%,#12233f 100%);font-family:Inter,system-ui,sans-serif;color:#e6edf3">
-      <div style="position:absolute;left:64px;top:150px;width:520px">
+      <div style="position:absolute;left:64px;top:110px;width:540px">
         <div style="font-size:84px;font-weight:700;letter-spacing:-2px">Captain</div>
-        <div style="font-size:32px;line-height:1.3;margin-top:18px;color:#9db4d3">
-          A tiny Docker dashboard that shows what's stale before you clean it.</div>
-        <div style="margin-top:34px;font-size:22px;color:#4c8dff">start · stop · auto-start · safe cleanup</div>
+        <div style="font-size:34px;line-height:1.25;margin-top:18px;color:#e6edf3;font-weight:600">
+          Secure your Docker containers.</div>
+        <div style="font-size:24px;line-height:1.35;margin-top:14px;color:#9db4d3">
+          Audit risky settings, scan images for vulnerabilities, and manage everything from one small dashboard.</div>
+        <div style="margin-top:30px;font-size:22px;color:#4c8dff">audit · scan · fix · clean up</div>
       </div>
       <img src="data:image/png;base64,{shot}" style="position:absolute;left:640px;top:90px;width:1100px;
         border-radius:14px;border:1px solid #2a313c;box-shadow:0 30px 80px rgba(0,0,0,.6)"/>
